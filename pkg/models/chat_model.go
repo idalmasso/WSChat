@@ -4,5 +4,6 @@ package models
 type ChatMessage struct{
 	Message string `json:"message"`
 	User string `json:"user"`
+	ID int64 `json:"id"`
 }
 

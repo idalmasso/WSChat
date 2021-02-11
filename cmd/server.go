@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gorilla/websocket"
 	"github.com/idalmasso/WSChat/pkg/services"
 )
 
@@ -22,27 +21,16 @@ func main() {
 	}
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  2048,
-	WriteBufferSize: 2048,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-	EnableCompression: true,
-}
+
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	user := r.URL.Query()["id"][0]
 	log.Println("UserJoined :", user)
-
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("ERROR", err)
+  u, err := services.AddUser(user, w,r); 
+	if err!=nil{
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
-	u:=services.User{Username: user, Conn: conn}
-	services.AddUser(&u)
 	// Start listening to messages from user
 	go u.ReceiveMessages()
 

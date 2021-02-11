@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -9,6 +10,14 @@ import (
 	"github.com/idalmasso/WSChat/pkg/models"
 )
 
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  2048,
+	WriteBufferSize: 2048,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+	EnableCompression: true,
+}
 //User is the type that contains data for a single user. Fill it and send it to Add user to be added to the chat list
 type User struct{
 	Username string 
@@ -17,18 +26,29 @@ type User struct{
 }
 //My little in memory db of users in chat
 var chatUsers map[string]*User = make(map[string]*User)
+var index int64
 
 var mutexUsers sync.Mutex
 
 //AddUser adds a user to the chat. 
-func AddUser(user *User) error{
+func AddUser(user string, w http.ResponseWriter, r *http.Request) (*User, error){
 	mutexUsers.Lock()
 	defer mutexUsers.Unlock()
-	if _, ok := chatUsers[user.Username]; ok{
-		return fmt.Errorf("User already exists with that username")
+	if _, ok := chatUsers[user]; ok{
+		return nil, fmt.Errorf("User already exists with that username")
 	}
-	chatUsers[user.Username]=user
-	return nil
+	if user=="Admin"{
+		return nil, fmt.Errorf("User already exists with that username")
+	}
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return nil, err
+	}
+	u:=User{Username: user, Conn: conn}
+	chatUsers[u.Username]=&u
+	loginMessage:=models.ChatMessage{User: "Admin", Message:"User "+u.Username+" Logged in"}
+	dispatchMessage(loginMessage)
+	return &u, nil
 }
 //RemoveUser removes a user from the chat.
 func RemoveUser(username string) {
@@ -53,6 +73,10 @@ func (u *User) ReceiveMessages(){
 			return
 		}
 		chatMessage.User=u.Username
+		mutexUsers.Lock()
+		index++
+		mutexUsers.Unlock()
+		chatMessage.ID = index
 		fmt.Println("Received message "+chatMessage.Message+" from user "+chatMessage.User)
 		dispatchMessage(chatMessage)
 	}
@@ -73,6 +97,8 @@ func (u *User) Send(message models.ChatMessage) error {
 func (u *User) Close() {
 	time.Sleep(1 * time.Second)
 	u.Conn.Close()
+	logoutMessage:=models.ChatMessage{User: "Admin", Message:"User "+u.Username+" Logged out"}
+	dispatchMessage(logoutMessage)
 }
 	
 func dispatchMessage(chatMessage models.ChatMessage){
