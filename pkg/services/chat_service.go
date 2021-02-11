@@ -16,7 +16,7 @@ type User struct{
 	sendMutex sync.Mutex
 }
 //My little in memory db of users in chat
-var chatUsers map[string]*User
+var chatUsers map[string]*User = make(map[string]*User)
 
 var mutexUsers sync.Mutex
 
@@ -53,6 +53,7 @@ func (u *User) ReceiveMessages(){
 			return
 		}
 		chatMessage.User=u.Username
+		fmt.Println("Received message "+chatMessage.Message+" from user "+chatMessage.User)
 		dispatchMessage(chatMessage)
 	}
 }
@@ -75,11 +76,10 @@ func (u *User) Close() {
 }
 	
 func dispatchMessage(chatMessage models.ChatMessage){
-	for key,user:=range(chatUsers){
-		if key!=chatMessage.User{
-			if err:= user.Send(chatMessage); err!=nil{
-				fmt.Println(err.Error())
-			}
+	for _,user:=range(chatUsers){
+		if err:= user.Send(chatMessage); err!=nil{
+			fmt.Println(err.Error())
+		
 		}
 	}
 }
